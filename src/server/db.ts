@@ -33,8 +33,20 @@ import {
 } from "../types";
 
 // Load Firebase configuration safely
-const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+let firebaseConfig: any;
+if (process.env.FIREBASE_CONFIG_JSON) {
+  // Production: Read from Environment Variable
+  firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG_JSON);
+} else {
+  // Local: Read from file
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } else {
+    console.warn("⚠️ No Firebase config found. Please set FIREBASE_CONFIG_JSON in env.");
+    firebaseConfig = {}; // Fallback to prevent crash, firestore will be disabled later
+  }
+}
 
 // Initialize Firebase App & Firestore Database
 const app = initializeApp(firebaseConfig);
