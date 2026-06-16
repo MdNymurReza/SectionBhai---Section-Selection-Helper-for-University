@@ -210,7 +210,10 @@ export const DB = {
       "schedules",
       "ratings",
       "preferences",
-      "saved_routines"
+      "saved_routines",
+      "announcements",
+      "exams",
+      "routine_shares"
     ];
 
     // Load every collection from Firestore into the Cache
@@ -344,6 +347,15 @@ export const DB = {
 
       memCache["saved_routines"] = [];
       await syncCollectionToFirestore("saved_routines", []);
+
+      memCache["announcements"] = [];
+      await syncCollectionToFirestore("announcements", []);
+
+      memCache["exams"] = [];
+      await syncCollectionToFirestore("exams", []);
+
+      memCache["routine_shares"] = [];
+      await syncCollectionToFirestore("routine_shares", []);
 
       console.log("Cloud database seeding is comprehensive and completed!");
     } else {

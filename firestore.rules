@@ -71,5 +71,20 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isValidId(routineId);
     }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isValidId(announcementId);
+    }
+
+    match /exams/{examId} {
+      allow read: if true;
+      allow write: if isValidId(examId);
+    }
+
+    match /routine_shares/{shareId} {
+      allow read: if true;
+      allow write: if isValidId(shareId);
+    }
   }
 }

@@ -385,6 +385,7 @@ app.post(
             id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             code: extC.code.toUpperCase(),
             name: extC.name,
+            credits: 3,
             trimesterId: currentTrimesterId,
             createdAt: new Date().toISOString()
           });
@@ -483,7 +484,7 @@ app.post("/api/admin/courses", verifyToken, requireAdmin, (req: AuthenticatedReq
   }
   const trimesterId = DB.getCollection<Trimester>("trimesters").find(t => t.isCurrent)?.id || "t1";
   const courses = DB.getCollection<Course>("courses");
-  const newCourse = { id: `manual_c_${Date.now()}`, code: code.toUpperCase(), name, trimesterId, createdAt: new Date().toISOString() };
+  const newCourse = { id: `manual_c_${Date.now()}`, code: code.toUpperCase(), name, credits: 3, trimesterId, createdAt: new Date().toISOString() };
   courses.push(newCourse);
   DB.saveCollection("courses", courses);
   res.status(201).json(newCourse);

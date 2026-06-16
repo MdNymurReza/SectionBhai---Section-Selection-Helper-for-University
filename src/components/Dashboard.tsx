@@ -122,6 +122,18 @@ export default function Dashboard({ token, user, onNavigateToBuilder, onNavigate
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Announcements Banner */}
+      {announcements.length > 0 && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start space-x-3 text-blue-900 text-sm shadow-sm">
+          <Megaphone className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold">{announcements[0].title}</p>
+            <p className="mt-1 text-xs opacity-90">{announcements[0].message}</p>
+          </div>
+          <span className="text-[10px] uppercase font-mono bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">Latest Notice</span>
+        </div>
+      )}
+
       {/* Dynamic Welcome Heading */}
       <div className="glass-panel-dark text-white rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center md:justify-between space-y-6 md:space-y-0 mb-8">
         <div>
@@ -466,6 +478,36 @@ export default function Dashboard({ token, user, onNavigateToBuilder, onNavigate
                                         );
                                       })}
                                     </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Exam Calendar Section */}
+                            {(() => {
+                              const routineExams = exams.filter(e => routine.selectedCourses.includes(e.courseCode)).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                              if (routineExams.length === 0) return null;
+                              return (
+                                <div className="mt-8 border border-indigo-100 bg-indigo-50/30 rounded-xl p-4">
+                                  <h4 className="text-xs font-bold text-indigo-900 mb-3 flex items-center space-x-1.5 font-display">
+                                    <BookOpen className="h-4 w-4 text-indigo-600" />
+                                    <span>Personalized Exam Schedule</span>
+                                  </h4>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {routineExams.map((exam, idx) => (
+                                      <div key={idx} className="bg-white border border-indigo-100 p-3 rounded-lg flex items-start justify-between shadow-xs">
+                                        <div>
+                                          <div className="flex items-center space-x-2">
+                                            <span className="font-extrabold text-sm text-indigo-950">{exam.courseCode}</span>
+                                            <span className="text-[9px] font-mono uppercase bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">{exam.examType}</span>
+                                          </div>
+                                          <div className="flex flex-col mt-1.5 space-y-1 text-slate-600">
+                                            <span className="text-xs font-medium flex items-center space-x-1"><CalendarDays className="h-3 w-3 opacity-70" /> <span>{new Date(exam.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></span>
+                                            <span className="text-xs font-medium flex items-center space-x-1"><Clock className="h-3 w-3 opacity-70" /> <span>{exam.time}</span></span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
                               );
