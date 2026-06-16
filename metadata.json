@@ -1,0 +1,6 @@
+{
+  "name": "SectionBhai",
+  "description": "University routine optimization platform. PDF Dao, Routine Nao.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

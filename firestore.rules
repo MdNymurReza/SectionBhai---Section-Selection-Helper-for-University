@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny safety net for unknown collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Collections ---
+    // We must allow global reads ("allow read: if true") because the server uses 
+    // the client SDK and performs "getDocs(collection(...))" which fetches all documents.
+    // Firestore rules are not filters, so if we restrict read by ID, list queries will fail!
+
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isValidId(userId);
+    }
+
+    match /students/{studentId} {
+      allow read: if true;
+      allow write: if isValidId(studentId);
+    }
+
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if isValidId(adminId);
+    }
+
+    match /trimesters/{trimesterId} {
+      allow read: if true;
+      allow write: if isValidId(trimesterId);
+    }
+
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isValidId(courseId);
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if true;
+      allow write: if isValidId(teacherId);
+    }
+
+    match /sections/{sectionId} {
+      allow read: if true;
+      allow write: if isValidId(sectionId);
+    }
+
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow write: if isValidId(scheduleId);
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if true;
+      allow write: if isValidId(ratingId);
+    }
+
+    match /preferences/{studentId} {
+      allow read: if true;
+      allow write: if isValidId(studentId);
+    }
+
+    match /saved_routines/{routineId} {
+      allow read: if true;
+      allow write: if isValidId(routineId);
+    }
+  }
+}

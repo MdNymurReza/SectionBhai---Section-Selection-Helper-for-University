@@ -1,0 +1,223 @@
+{
+  "entities": {
+    "Trimester": {
+      "title": "Trimester",
+      "description": "Represents an academic trimester",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "isCurrent": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "isCurrent", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a user account in the system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "passwordHash": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "student"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "passwordHash", "role", "createdAt"]
+    },
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Represents a student profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "studentId": { "type": "string" },
+        "department": { "type": "string" },
+        "currentTrimesterId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "studentId", "department", "currentTrimesterId", "createdAt"]
+    },
+    "AdminProfile": {
+      "title": "AdminProfile",
+      "description": "Represents an admin profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "userId", "name"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Represents an academic course",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "trimesterId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "name", "trimesterId", "createdAt"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Represents a teacher with ratings and metrics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "averageRating": { "type": "number" },
+        "metricsAverage": {
+          "type": "object",
+          "properties": {
+            "teachingQuality": { "type": "number" },
+            "gradingFairness": { "type": "number" },
+            "attendanceStrictness": { "type": "number" },
+            "behavior": { "type": "number" },
+            "recommendation": { "type": "number" }
+          }
+        },
+        "ratingCount": { "type": "number" }
+      },
+      "required": ["id", "code", "name", "averageRating", "metricsAverage", "ratingCount"]
+    },
+    "Section": {
+      "title": "Section",
+      "description": "Represents a course section",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "sectionCode": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "trimesterId": { "type": "string" }
+      },
+      "required": ["id", "courseId", "sectionCode", "teacherId", "trimesterId"]
+    },
+    "ScheduleItem": {
+      "title": "ScheduleItem",
+      "description": "Represents a weekly class slot timing for a section",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sectionId": { "type": "string" },
+        "day": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "room": { "type": "string" }
+      },
+      "required": ["id", "sectionId", "day", "startTime", "endTime", "room"]
+    },
+    "TeacherRating": {
+      "title": "TeacherRating",
+      "description": "Represents a teacher review and rating",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "courseId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "teachingQuality": { "type": "number" },
+            "gradingFairness": { "type": "number" },
+            "attendanceStrictness": { "type": "number" },
+            "behavior": { "type": "number" },
+            "recommendation": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "studentName", "teacherId", "courseId", "rating", "comment", "metrics", "createdAt"]
+    },
+    "RoutinePreferences": {
+      "title": "RoutinePreferences",
+      "description": "Represents a student's constraints and priorities for schedule generation",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "selectedCourses": { "type": "array", "items": { "type": "string" } },
+        "teacherPriorities": { "type": "object" },
+        "daysPreference": { "type": "object" },
+        "slotsPreference": { "type": "object" }
+      },
+      "required": ["studentId", "selectedCourses", "teacherPriorities", "daysPreference", "slotsPreference"]
+    },
+    "GeneratedRoutine": {
+      "title": "GeneratedRoutine",
+      "description": "Represents a generated and saved personal routine",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "name": { "type": "string" },
+        "selectedCourses": { "type": "array", "items": { "type": "string" } },
+        "sections": { "type": "array", "items": { "type": "object" } },
+        "score": { "type": "number" },
+        "matchPercentage": { "type": "number" },
+        "freeDays": { "type": "array", "items": { "type": "string" } },
+        "gapsCount": { "type": "number" },
+        "averageGapMinutes": { "type": "number" },
+        "details": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "name", "selectedCourses", "sections", "score", "matchPercentage", "freeDays", "gapsCount", "averageGapMinutes", "details", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/trimesters/{trimesterId}": {
+      "schema": "Trimester",
+      "description": "Collection of academic trimesters"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of system user accounts"
+    },
+    "/students/{studentId}": {
+      "schema": "StudentProfile",
+      "description": "Collection of student profiles"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminProfile",
+      "description": "Collection of admin profiles"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Collection of trimester academic courses"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Collection of teachers with rating aggregations"
+    },
+    "/sections/{sectionId}": {
+      "schema": "Section",
+      "description": "Collection of course sections"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": "ScheduleItem",
+      "description": "Collection of weekly schedule time periods per section"
+    },
+    "/ratings/{ratingId}": {
+      "schema": "TeacherRating",
+      "description": "Collection of teacher reviews submitted by students"
+    },
+    "/preferences/{studentId}": {
+      "schema": "RoutinePreferences",
+      "description": "Collection of individual student generator preferences"
+    },
+    "/saved_routines/{routineId}": {
+      "schema": "GeneratedRoutine",
+      "description": "Collection of personal saved/optimized schedules"
+    }
+  }
+}

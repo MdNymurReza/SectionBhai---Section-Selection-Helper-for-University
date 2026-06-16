@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming(request) {
+      return request.resource.data;
+    }
+
+    function existing(resource) {
+      return resource.data;
+    }
+
+    // User collection rules
+    match /users/{userId} {
+      allow read, write: if isValidId(userId);
+    }
+
+    // Student profile rules
+    match /students/{studentId} {
+      allow read, write: if isValidId(studentId);
+    }
+
+    // Admin profile rules
+    match /admins/{adminId} {
+      allow read, write: if isValidId(adminId);
+    }
+
+    // Trimesters rules
+    match /trimesters/{trimesterId} {
+      allow read, write: if isValidId(trimesterId);
+    }
+
+    // Courses rules
+    match /courses/{courseId} {
+      allow read, write: if isValidId(courseId);
+    }
+
+    // Teachers rules
+    match /teachers/{teacherId} {
+      allow read, write: if isValidId(teacherId);
+    }
+
+    // Sections rules
+    match /sections/{sectionId} {
+      allow read, write: if isValidId(sectionId);
+    }
+
+    // Schedules rules
+    match /schedules/{scheduleId} {
+      allow read, write: if isValidId(scheduleId);
+    }
+
+    // Ratings rules
+    match /ratings/{ratingId} {
+      allow read, write: if isValidId(ratingId);
+    }
+
+    // Preferences rules
+    match /preferences/{studentId} {
+      allow read, write: if isValidId(studentId);
+    }
+
+    // Routine saved rules
+    match /saved_routines/{routineId} {
+      allow read, write: if isValidId(routineId);
+    }
+  }
+}
