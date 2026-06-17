@@ -6,7 +6,8 @@
 import fs from "fs";
 import path from "path";
 import bcrypt from "bcryptjs";
-import * as admin from "firebase-admin";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import {
   User,
   StudentProfile,
@@ -40,16 +41,16 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
 // Initialize Firebase Admin
 try {
   if (serviceAccount) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+    initializeApp({
+      credential: cert(serviceAccount)
     });
     console.log("Firebase Admin initialized with service account.");
   } else if (process.env.FIREBASE_CONFIG_JSON || fs.existsSync(path.join(process.cwd(), "firebase-applet-config.json"))) {
     // If no service account is provided, but a client config is found, Vercel/GCP might use Application Default Credentials.
-    admin.initializeApp();
+    initializeApp();
     console.log("Firebase Admin initialized (Application Default Credentials). Warning: Ensure you provide FIREBASE_SERVICE_ACCOUNT_JSON in production for full security.");
   } else {
-    admin.initializeApp();
+    initializeApp();
   }
 } catch (error: any) {
   if (error.code !== "app/duplicate-app") {
@@ -57,7 +58,7 @@ try {
   }
 }
 
-export const db = admin.firestore();
+export const db = getFirestore();
 
 let firestoreEnabled = true;
 function disableFirestore(reason: string) {
