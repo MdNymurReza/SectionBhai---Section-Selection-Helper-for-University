@@ -9,7 +9,7 @@ import path from "path";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
-import { createServer as createViteServer } from "vite";
+// Dynamic import for vite later
 
 // Local imports
 import { DB } from "./src/server/db";
@@ -976,6 +976,7 @@ async function setupServer() {
 
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     // Integrate Vite as middleware in dev mode
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
