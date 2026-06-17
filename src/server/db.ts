@@ -6,18 +6,7 @@
 import fs from "fs";
 import path from "path";
 import bcrypt from "bcryptjs";
-import { initializeApp } from "firebase/app";
-import {
-  getFirestore,
-  doc,
-  getDocs,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  collection,
-  writeBatch,
-  onSnapshot
-} from "firebase/firestore";
+import * as admin from "firebase-admin";
 import {
   User,
   StudentProfile,
@@ -33,24 +22,42 @@ import {
 } from "../types";
 
 // Load Firebase configuration safely
-let firebaseConfig: any;
-if (process.env.FIREBASE_CONFIG_JSON) {
-  // Production: Read from Environment Variable
-  firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG_JSON);
+let serviceAccount: any = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  } catch (e) {
+    console.warn("⚠️ Invalid JSON in FIREBASE_SERVICE_ACCOUNT_JSON");
+  }
 } else {
-  // Local: Read from file
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  } else {
-    console.warn("⚠️ No Firebase config found. Please set FIREBASE_CONFIG_JSON in env.");
-    firebaseConfig = {}; // Fallback to prevent crash, firestore will be disabled later
+  // Local fallback: Read from file if available
+  const saPath = path.join(process.cwd(), "service-account.json");
+  if (fs.existsSync(saPath)) {
+    serviceAccount = JSON.parse(fs.readFileSync(saPath, "utf-8"));
   }
 }
 
-// Initialize Firebase App & Firestore Database
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Initialize Firebase Admin
+try {
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log("Firebase Admin initialized with service account.");
+  } else if (process.env.FIREBASE_CONFIG_JSON || fs.existsSync(path.join(process.cwd(), "firebase-applet-config.json"))) {
+    // If no service account is provided, but a client config is found, Vercel/GCP might use Application Default Credentials.
+    admin.initializeApp();
+    console.log("Firebase Admin initialized (Application Default Credentials). Warning: Ensure you provide FIREBASE_SERVICE_ACCOUNT_JSON in production for full security.");
+  } else {
+    admin.initializeApp();
+  }
+} catch (error: any) {
+  if (error.code !== "app/duplicate-app") {
+    console.error("Firebase Admin Initialization Error:", error);
+  }
+}
+
+export const db = admin.firestore();
 
 let firestoreEnabled = true;
 function disableFirestore(reason: string) {
@@ -59,56 +66,6 @@ function disableFirestore(reason: string) {
     console.warn(`🚫 Firestore access disabled: ${reason}`);
     console.warn("   The app will continue using in-memory data only.");
   }
-}
-
-function isFirestoreUnavailableError(err: any) {
-  const msg = String(err?.message || err || "").toLowerCase();
-  return msg.includes("permission") || msg.includes("unauthorized") || msg.includes("insufficient");
-}
-
-// Error handling compliance
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: null,
-      email: null,
-      emailVerified: null,
-      isAnonymous: null,
-      tenantId: null,
-      providerInfo: []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 // Global in-memory cache for ultra-fast, non-blocking synchronous returns in App endpoints
@@ -126,7 +83,7 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
     // 1. Fetch current document IDs from the Firestore collection to plan deletes
     let currentDocIds = new Set<string>();
     try {
-      const currentSnapshot = await getDocs(collection(db, tableName));
+      const currentSnapshot = await db.collection(tableName).get();
       currentSnapshot.forEach((d) => currentDocIds.add(d.id));
     } catch (err: any) {
       const msg = err?.message || "Unknown error";
@@ -135,7 +92,7 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
     }
 
     // 2. Perform set/update and delete in batches of 400 documents (limit is 500)
-    let batch = writeBatch(db);
+    let batch = db.batch();
     let count = 0;
 
     for (const item of data) {
@@ -143,13 +100,13 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
       if (!docId) continue;
       newDocIds.add(docId);
 
-      const docRef = doc(db, tableName, docId);
+      const docRef = db.collection(tableName).doc(docId);
       batch.set(docRef, item);
       count++;
 
       if (count >= 400) {
         await batch.commit();
-        batch = writeBatch(db);
+        batch = db.batch();
         count = 0;
       }
     }
@@ -157,13 +114,13 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
     // 3. Purge elements that were deleted
     for (const oldId of currentDocIds) {
       if (!newDocIds.has(oldId)) {
-        const docRef = doc(db, tableName, oldId);
+        const docRef = db.collection(tableName).doc(oldId);
         batch.delete(docRef);
         count++;
 
         if (count >= 400) {
           await batch.commit();
-          batch = writeBatch(db);
+          batch = db.batch();
           count = 0;
         }
       }
@@ -205,10 +162,10 @@ export const DB = {
 
     // Test connection first
     try {
-      await getDoc(doc(db, "test", "connection"));
+      await db.collection("test").doc("connection").get();
       console.log("Firestore connection validated successfully!");
     } catch (err) {
-      console.log("Firestore connection test completed.");
+      console.log("Firestore connection test completed (or skipped).");
     }
 
     const tables = [
@@ -236,7 +193,7 @@ export const DB = {
       }
 
       try {
-        const querySnapshot = await getDocs(collection(db, table));
+        const querySnapshot = await db.collection(table).get();
         const items: any[] = [];
         querySnapshot.forEach((docSnap) => {
           items.push(docSnap.data());
@@ -245,7 +202,7 @@ export const DB = {
         console.log(`Loaded collection '${table}' from Firestore (${items.length} records).`);
 
         // Setup real-time listener to sync remote edits/deletions automatically
-        onSnapshot(collection(db, table), (snapshot) => {
+        db.collection(table).onSnapshot((snapshot) => {
           const updatedItems: any[] = [];
           snapshot.forEach((docSnap) => {
             updatedItems.push(docSnap.data());

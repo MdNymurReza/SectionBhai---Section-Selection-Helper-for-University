@@ -974,14 +974,14 @@ async function setupServer() {
   // Initialize Cloud Firestore database asynchronously
   await DB.init();
 
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     // Integrate Vite as middleware in dev mode
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     // Serve static frontend files in production build
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -990,19 +990,28 @@ async function setupServer() {
     });
   }
 
-  try {
-    await listenPort(DEFAULT_PORT);
-  } catch (err: any) {
-    if (err?.code === "EADDRINUSE") {
-      const fallbackPort = DEFAULT_PORT + 1;
-      console.warn(`Port ${DEFAULT_PORT} is already in use. Trying ${fallbackPort} instead.`);
-      await listenPort(fallbackPort);
-    } else {
-      throw err;
+  if (!process.env.VERCEL) {
+    try {
+      await listenPort(DEFAULT_PORT);
+    } catch (err: any) {
+      if (err?.code === "EADDRINUSE") {
+        const fallbackPort = DEFAULT_PORT + 1;
+        console.warn(`Port ${DEFAULT_PORT} is already in use. Trying ${fallbackPort} instead.`);
+        await listenPort(fallbackPort);
+      } else {
+        throw err;
+      }
     }
   }
 }
 
-setupServer().catch(err => {
-  console.error("Critical server setup startup crash:", err);
-});
+if (!process.env.VERCEL) {
+  setupServer().catch(err => {
+    console.error("Critical server setup startup crash:", err);
+  });
+} else {
+  // In Vercel serverless environment, initialize DB without starting a listener.
+  DB.init().catch(err => console.error("Firebase init error:", err));
+}
+
+export default app;
