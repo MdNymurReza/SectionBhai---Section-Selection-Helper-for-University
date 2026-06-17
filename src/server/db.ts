@@ -58,7 +58,19 @@ try {
   }
 }
 
-export const db = getFirestore();
+let dbInstance: admin.firestore.Firestore | null = null;
+try {
+  dbInstance = getFirestore();
+} catch (e) {
+  console.warn("Firestore could not be initialized at module load.");
+}
+
+export const getDb = () => {
+  if (!dbInstance) {
+    throw new Error("Database is not initialized. Please configure Firebase Service Account.");
+  }
+  return dbInstance;
+};
 
 let firestoreEnabled = true;
 function disableFirestore(reason: string) {
@@ -84,7 +96,7 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
     // 1. Fetch current document IDs from the Firestore collection to plan deletes
     let currentDocIds = new Set<string>();
     try {
-      const currentSnapshot = await db.collection(tableName).get();
+      const currentSnapshot = await getDb().collection(tableName).get();
       currentSnapshot.forEach((d) => currentDocIds.add(d.id));
     } catch (err: any) {
       const msg = err?.message || "Unknown error";
@@ -93,7 +105,7 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
     }
 
     // 2. Perform set/update and delete in batches of 400 documents (limit is 500)
-    let batch = db.batch();
+    let batch = getDb().batch();
     let count = 0;
 
     for (const item of data) {
@@ -101,13 +113,13 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
       if (!docId) continue;
       newDocIds.add(docId);
 
-      const docRef = db.collection(tableName).doc(docId);
+      const docRef = getDb().collection(tableName).doc(docId);
       batch.set(docRef, item);
       count++;
 
       if (count >= 400) {
         await batch.commit();
-        batch = db.batch();
+        batch = getDb().batch();
         count = 0;
       }
     }
@@ -115,13 +127,13 @@ async function syncCollectionToFirestore(tableName: string, data: any[]): Promis
     // 3. Purge elements that were deleted
     for (const oldId of currentDocIds) {
       if (!newDocIds.has(oldId)) {
-        const docRef = db.collection(tableName).doc(oldId);
+        const docRef = getDb().collection(tableName).doc(oldId);
         batch.delete(docRef);
         count++;
 
         if (count >= 400) {
           await batch.commit();
-          batch = db.batch();
+          batch = getDb().batch();
           count = 0;
         }
       }
@@ -163,7 +175,7 @@ export const DB = {
 
     // Test connection first
     try {
-      await db.collection("test").doc("connection").get();
+      await getDb().collection("test").doc("connection").get();
       console.log("Firestore connection validated successfully!");
     } catch (err) {
       console.log("Firestore connection test completed (or skipped).");
@@ -194,7 +206,7 @@ export const DB = {
       }
 
       try {
-        const querySnapshot = await db.collection(table).get();
+        const querySnapshot = await getDb().collection(table).get();
         const items: any[] = [];
         querySnapshot.forEach((docSnap) => {
           items.push(docSnap.data());
@@ -203,7 +215,7 @@ export const DB = {
         console.log(`Loaded collection '${table}' from Firestore (${items.length} records).`);
 
         // Setup real-time listener to sync remote edits/deletions automatically
-        db.collection(table).onSnapshot((snapshot) => {
+        getDb().collection(table).onSnapshot((snapshot) => {
           const updatedItems: any[] = [];
           snapshot.forEach((docSnap) => {
             updatedItems.push(docSnap.data());
