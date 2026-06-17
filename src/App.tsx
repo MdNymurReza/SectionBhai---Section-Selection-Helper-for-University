@@ -184,7 +184,7 @@ export default function App() {
               </h1>
 
               <p className="text-slate-600 text-lg max-w-xl mx-auto lg:mx-0 font-sans leading-relaxed">
-                 The ultimate university schedule optimization system. Upload offering lists, assign priority stars for faculty, choose desired slots, and let the CSP engine generate clash-free options in less than 2 milliseconds.
+                The ultimate university schedule optimization system. Upload offering lists, assign priority stars for faculty, choose desired slots, and let the CSP engine generate clash-free options in less than 2 milliseconds.
               </p>
 
               {/* Functional benefits points checklist */}
@@ -354,11 +354,11 @@ export default function App() {
                   </p>
                 )}
 
-                <div className="bg-white/45 p-3 rounded-xl border border-white/50 text-left text-[10px] text-slate-500 font-mono space-y-1.5 shadow-xs">
+                {/* <div className="bg-white/45 p-3 rounded-xl border border-white/50 text-left text-[10px] text-slate-500 font-mono space-y-1.5 shadow-xs">
                   <p className="font-bold uppercase text-[9px] text-indigo-650 tracking-wider">Default Demo Credentials:</p>
                   <p>• Student: <code className="bg-white/60 px-1 py-0.5 rounded">student@sectionbhai.edu</code> / <code className="bg-white/60 px-1 py-0.5 rounded">studentpassword123</code></p>
                   <p>• Admin: <code className="bg-white/60 px-1 py-0.5 rounded">admin@sectionbhai.edu</code> / <code className="bg-white/60 px-1 py-0.5 rounded">adminpassword123</code></p>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
