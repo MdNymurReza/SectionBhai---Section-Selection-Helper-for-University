@@ -101,7 +101,14 @@ export default function App() {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      // Safely parse the response - handle empty or non-JSON responses
+      const text = await res.text();
+      let data: any;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`Server returned an unexpected response (status ${res.status}). Please try again.`);
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "Authentication failed. Please verify credentials.");

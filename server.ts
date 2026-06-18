@@ -103,72 +103,77 @@ function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFuncti
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
 
-app.post("/api/auth/register", (req: Request, res: Response) => {
-  const { email, password, name, studentId, department } = req.body;
+app.post("/api/auth/register", async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, studentId, department } = req.body;
 
-  if (!email || !password || !name || !studentId) {
-    res.status(400).json({ error: "Missing required fields (email, password, name, studentId)." });
-    return;
-  }
-
-  const users = DB.getCollection<User>("users");
-  if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-    res.status(400).json({ error: "An account with this email address already exists." });
-    return;
-  }
-
-  const students = DB.getCollection<StudentProfile>("students");
-  if (students.some(s => s.studentId === studentId)) {
-    res.status(400).json({ error: "An account with this Student ID already exists." });
-    return;
-  }
-
-  const currentTrimester = DB.getCollection<Trimester>("trimesters").find(t => t.isCurrent)?.id || "t1";
-
-  // Create User
-  const userId = `user_${Date.now()}`;
-  const passwordHash = bcrypt.hashSync(password, 10);
-  const newUser: User = {
-    id: userId,
-    email: email.toLowerCase(),
-    passwordHash,
-    role: "student",
-    createdAt: new Date().toISOString()
-  };
-
-  // Create Student Profile
-  const studentIdPr = `student_${Date.now()}`;
-  const newStudent: StudentProfile = {
-    id: studentIdPr,
-    userId,
-    name,
-    studentId,
-    department: department || "Computer Science",
-    currentTrimesterId: currentTrimester,
-    createdAt: new Date().toISOString()
-  };
-
-  users.push(newUser);
-  students.push(newStudent);
-
-  DB.saveCollection("users", users);
-  DB.saveCollection("students", students);
-
-  // Sign JWT
-  const token = jwt.sign({ id: userId, email: newUser.email, role: "student" }, JWT_SECRET, { expiresIn: "7d" });
-
-  res.status(201).json({
-    token,
-    user: {
-      id: userId,
-      email: newUser.email,
-      role: newUser.role,
-      name: newStudent.name,
-      studentId: newStudent.studentId,
-      department: newStudent.department,
-      currentTrimesterId: newStudent.currentTrimesterId
+    if (!email || !password || !name || !studentId) {
+      res.status(400).json({ error: "Missing required fields (email, password, name, studentId)." });
+      return;
     }
-  });
+
+    const users = DB.getCollection<User>("users");
+    if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+      res.status(400).json({ error: "An account with this email address already exists." });
+      return;
+    }
+
+    const students = DB.getCollection<StudentProfile>("students");
+    if (students.some(s => s.studentId === studentId)) {
+      res.status(400).json({ error: "An account with this Student ID already exists." });
+      return;
+    }
+
+    const currentTrimester = DB.getCollection<Trimester>("trimesters").find(t => t.isCurrent)?.id || "t1";
+
+    // Create User
+    const userId = `user_${Date.now()}`;
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const newUser: User = {
+      id: userId,
+      email: email.toLowerCase(),
+      passwordHash,
+      role: "student",
+      createdAt: new Date().toISOString()
+    };
+
+    // Create Student Profile
+    const studentIdPr = `student_${Date.now()}`;
+    const newStudent: StudentProfile = {
+      id: studentIdPr,
+      userId,
+      name,
+      studentId,
+      department: department || "Computer Science",
+      currentTrimesterId: currentTrimester,
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    students.push(newStudent);
+
+    await DB.saveCollection("users", users);
+    await DB.saveCollection("students", students);
+
+    // Sign JWT
+    const token = jwt.sign({ id: userId, email: newUser.email, role: "student" }, JWT_SECRET, { expiresIn: "7d" });
+
+    res.status(201).json({
+      token,
+      user: {
+        id: userId,
+        email: newUser.email,
+        role: newUser.role,
+        name: newStudent.name,
+        studentId: newStudent.studentId,
+        department: newStudent.department,
+        currentTrimesterId: newStudent.currentTrimesterId
+      }
+    });
+  } catch (err: any) {
+    console.error("Registration error:", err);
+    res.status(500).json({ error: "Registration failed: " + (err.message || "Unknown error") });
+  }
 });
 
 app.post("/api/auth/login", (req: Request, res: Response) => {
@@ -1034,9 +1039,8 @@ if (!process.env.VERCEL) {
   setupServer().catch(err => {
     console.error("Critical server setup startup crash:", err);
   });
-} else {
-  // In Vercel serverless environment, initialize DB without starting a listener.
-  DB.init().catch(err => console.error("Firebase init error:", err));
 }
+// On Vercel, DB initialization is handled by the ensureDbInit middleware.
+// Do NOT call DB.init() here to avoid a race condition with the middleware.
 
 export default app;
