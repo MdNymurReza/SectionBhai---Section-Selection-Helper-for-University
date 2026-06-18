@@ -7,7 +7,7 @@ import fs from "fs";
 import path from "path";
 import bcrypt from "bcryptjs";
 import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 import {
   User,
   StudentProfile,
@@ -58,7 +58,7 @@ try {
   }
 }
 
-let dbInstance: admin.firestore.Firestore | null = null;
+let dbInstance: Firestore | null = null;
 try {
   dbInstance = getFirestore();
 } catch (e) {
