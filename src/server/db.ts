@@ -198,42 +198,44 @@ export const DB = {
       "routine_shares"
     ];
 
-    // Load every collection from Firestore into the Cache
-    for (const table of tables) {
-      if (!firestoreEnabled) {
-        memCache[table] = [];
-        continue;
-      }
-
-      try {
-        const querySnapshot = await getDb().collection(table).get();
-        const items: any[] = [];
-        querySnapshot.forEach((docSnap) => {
-          items.push(docSnap.data());
-        });
-        memCache[table] = items;
-        console.log(`Loaded collection '${table}' from Firestore (${items.length} records).`);
-
-        // Setup real-time listener to sync remote edits/deletions automatically (only outside Vercel serverless)
-        if (!process.env.VERCEL) {
-          getDb().collection(table).onSnapshot((snapshot) => {
-            const updatedItems: any[] = [];
-            snapshot.forEach((docSnap) => {
-              updatedItems.push(docSnap.data());
-            });
-            memCache[table] = updatedItems;
-            console.log(`[Sync] Collection '${table}' updated in real-time (${updatedItems.length} records).`);
-          }, (err) => {
-            console.warn(`⚠️ Real-time listener error for '${table}':`, err.message || err);
-          });
+    // Load every collection from Firestore into the Cache in parallel
+    await Promise.all(
+      tables.map(async (table) => {
+        if (!firestoreEnabled) {
+          memCache[table] = [];
+          return;
         }
-      } catch (err: any) {
-        const errorMsg = err?.message || 'Unknown error';
-        console.warn(`⚠️  Could not load '${table}' from Firestore: ${errorMsg}`);
-        console.warn(`   Using empty in-memory cache for '${table}' instead.`);
-        memCache[table] = [];
-      }
-    }
+
+        try {
+          const querySnapshot = await getDb().collection(table).get();
+          const items: any[] = [];
+          querySnapshot.forEach((docSnap) => {
+            items.push(docSnap.data());
+          });
+          memCache[table] = items;
+          console.log(`Loaded collection '${table}' from Firestore (${items.length} records).`);
+
+          // Setup real-time listener to sync remote edits/deletions automatically (only outside Vercel serverless)
+          if (!process.env.VERCEL) {
+            getDb().collection(table).onSnapshot((snapshot) => {
+              const updatedItems: any[] = [];
+              snapshot.forEach((docSnap) => {
+                updatedItems.push(docSnap.data());
+              });
+              memCache[table] = updatedItems;
+              console.log(`[Sync] Collection '${table}' updated in real-time (${updatedItems.length} records).`);
+            }, (err) => {
+              console.warn(`⚠️ Real-time listener error for '${table}':`, err.message || err);
+            });
+          }
+        } catch (err: any) {
+          const errorMsg = err?.message || 'Unknown error';
+          console.warn(`⚠️  Could not load '${table}' from Firestore: ${errorMsg}`);
+          console.warn(`   Using empty in-memory cache for '${table}' instead.`);
+          memCache[table] = [];
+        }
+      })
+    );
 
     // Seeding logic if the database collections are currently empty
     if (this.getCollection("trimesters").length === 0) {

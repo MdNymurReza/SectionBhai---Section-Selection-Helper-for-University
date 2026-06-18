@@ -12,10 +12,10 @@ import multer from "multer";
 // Dynamic import for vite later
 
 // Local imports
-import { DB } from "./src/server/db";
-import { generateOptimizedRoutines } from "./src/server/solver";
-import { parseOfferingDocument } from "./src/server/geminiParser";
-import { User, StudentProfile, Trimester, Course, Teacher, Section, ScheduleItem, TeacherRating, RoutinePreferences, GeneratedRoutine } from "./src/types";
+import { DB } from "./src/server/db.js";
+import { generateOptimizedRoutines } from "./src/server/solver.js";
+import { parseOfferingDocument } from "./src/server/geminiParser.js";
+import { User, StudentProfile, Trimester, Course, Teacher, Section, ScheduleItem, TeacherRating, RoutinePreferences, GeneratedRoutine } from "./src/types.js";
 
 // Initialize database (deferred to setupServer async flow)
 
@@ -855,7 +855,7 @@ app.delete("/api/student/saved-routines/:id", verifyToken, (req: AuthenticatedRe
 // 3.5 ANNOUNCEMENTS, EXAMS, AND SOCIAL SHARING
 // ==========================================
 
-import { Announcement, ExamSchedule, RoutineShare } from "./src/types";
+import { Announcement, ExamSchedule, RoutineShare } from "./src/types.js";
 
 // Announcements API
 app.get("/api/announcements", (req: Request, res: Response) => {
