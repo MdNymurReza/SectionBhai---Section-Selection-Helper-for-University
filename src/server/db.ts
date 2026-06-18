@@ -214,17 +214,19 @@ export const DB = {
         memCache[table] = items;
         console.log(`Loaded collection '${table}' from Firestore (${items.length} records).`);
 
-        // Setup real-time listener to sync remote edits/deletions automatically
-        getDb().collection(table).onSnapshot((snapshot) => {
-          const updatedItems: any[] = [];
-          snapshot.forEach((docSnap) => {
-            updatedItems.push(docSnap.data());
+        // Setup real-time listener to sync remote edits/deletions automatically (only outside Vercel serverless)
+        if (!process.env.VERCEL) {
+          getDb().collection(table).onSnapshot((snapshot) => {
+            const updatedItems: any[] = [];
+            snapshot.forEach((docSnap) => {
+              updatedItems.push(docSnap.data());
+            });
+            memCache[table] = updatedItems;
+            console.log(`[Sync] Collection '${table}' updated in real-time (${updatedItems.length} records).`);
+          }, (err) => {
+            console.warn(`⚠️ Real-time listener error for '${table}':`, err.message || err);
           });
-          memCache[table] = updatedItems;
-          console.log(`[Sync] Collection '${table}' updated in real-time (${updatedItems.length} records).`);
-        }, (err) => {
-          console.warn(`⚠️ Real-time listener error for '${table}':`, err.message || err);
-        });
+        }
       } catch (err: any) {
         const errorMsg = err?.message || 'Unknown error';
         console.warn(`⚠️  Could not load '${table}' from Firestore: ${errorMsg}`);

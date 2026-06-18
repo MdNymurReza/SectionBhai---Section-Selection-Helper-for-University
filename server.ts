@@ -40,6 +40,30 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+// Ensure database is initialized before handling requests (especially critical on Vercel)
+let isDbInitialized = false;
+let dbInitializationPromise: Promise<void> | null = null;
+
+async function ensureDbInit() {
+  if (isDbInitialized) return;
+  if (!dbInitializationPromise) {
+    dbInitializationPromise = DB.init().then(() => {
+      isDbInitialized = true;
+    });
+  }
+  await dbInitializationPromise;
+}
+
+app.use(async (req, res, next) => {
+  try {
+    await ensureDbInit();
+    next();
+  } catch (err: any) {
+    console.error("Database initialization failed in middleware:", err);
+    res.status(500).json({ error: "Database initialization failed: " + err.message });
+  }
+});
+
 // Express auth middleware
 interface AuthenticatedRequest extends Request {
   user?: {
