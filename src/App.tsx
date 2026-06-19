@@ -111,7 +111,7 @@ export default function App() {
       }
 
       if (!res.ok) {
-        throw new Error(data.error || "Authentication failed. Please verify credentials.");
+        throw new Error(data.error || data.message || `Server error (${res.status}). Please try again.`);
       }
 
       // Store credentials
