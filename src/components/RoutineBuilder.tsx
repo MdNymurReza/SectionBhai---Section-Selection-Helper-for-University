@@ -62,6 +62,12 @@ export default function RoutineBuilder({ token, onSavedSuccess }: RoutineBuilder
   const [generatedRoutines, setGeneratedRoutines] = useState<GeneratedRoutine[]>([]);
   const [activeRoutineIdx, setActiveRoutineIdx] = useState<number>(0);
 
+  // Section popularity map: sectionId -> count of students who saved a routine with it
+  const [sectionPopularity, setSectionPopularity] = useState<Record<string, number>>({});
+
+  // Conflict warnings: list of course-pair strings that have no valid clash-free combination
+  const [conflictWarnings, setConflictWarnings] = useState<string[]>([]);
+
   // Load backend contexts
   const loadContexts = async () => {
     try {
@@ -86,6 +92,11 @@ export default function RoutineBuilder({ token, onSavedSuccess }: RoutineBuilder
       const schData = await schRes.json();
       if (schRes.ok) setAllSchedules(schData);
 
+      // Load section popularity counts
+      const popRes = await fetch("/api/student/section-popularity");
+      const popData = await popRes.json();
+      if (popRes.ok) setSectionPopularity(popData);
+
       // Load existing user preferences if any
       const pRes = await fetch("/api/student/preferences", {
         headers: { Authorization: `Bearer ${token}` }
@@ -109,6 +120,50 @@ export default function RoutineBuilder({ token, onSavedSuccess }: RoutineBuilder
   useEffect(() => {
     loadContexts();
   }, [token]);
+
+  // Check for scheduling conflicts whenever selected courses change
+  useEffect(() => {
+    if (selectedCourses.length < 2 || allSections.length === 0 || allSchedules.length === 0) {
+      setConflictWarnings([]);
+      return;
+    }
+
+    const timeToMin = (t: string): number => {
+      if (!t) return 0;
+      const m = t.trim().toUpperCase().match(/^(\d+):(\d+)\s*(AM|PM)$/);
+      if (!m) return 0;
+      let h = parseInt(m[1]); const min = parseInt(m[2]); const ap = m[3];
+      if (ap === "PM" && h !== 12) h += 12;
+      else if (ap === "AM" && h === 12) h = 0;
+      return h * 60 + min;
+    };
+
+    const overlaps = (a: ScheduleItem, b: ScheduleItem) =>
+      a.day === b.day && timeToMin(a.startTime) < timeToMin(b.endTime) && timeToMin(b.startTime) < timeToMin(a.endTime);
+
+    // For each pair of courses, check if every section combination clashes
+    const warnings: string[] = [];
+    for (let i = 0; i < selectedCourses.length; i++) {
+      for (let j = i + 1; j < selectedCourses.length; j++) {
+        const secA = allSections.filter(s => s.courseId === selectedCourses[i].id);
+        const secB = allSections.filter(s => s.courseId === selectedCourses[j].id);
+        if (secA.length === 0 || secB.length === 0) continue;
+
+        const hasValidPair = secA.some(sa =>
+          secB.some(sb => {
+            const schA = allSchedules.filter(s => s.sectionId === sa.id);
+            const schB = allSchedules.filter(s => s.sectionId === sb.id);
+            return !schA.some(a => schB.some(b => overlaps(a, b)));
+          })
+        );
+
+        if (!hasValidPair) {
+          warnings.push(`${selectedCourses[i].code} ↔ ${selectedCourses[j].code}`);
+        }
+      }
+    }
+    setConflictWarnings(warnings);
+  }, [selectedCourses, allSections, allSchedules]);
 
   // Autocomplete suggestions filter
   const suggestions = allCourses.filter(
@@ -609,6 +664,20 @@ export default function RoutineBuilder({ token, onSavedSuccess }: RoutineBuilder
             )}
           </div>
 
+          {/* Conflict Warning Banner */}
+          {conflictWarnings.length > 0 && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1.5">
+              <p className="font-bold flex items-center space-x-1.5">
+                <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Schedule Conflict Detected</span>
+              </p>
+              <p className="text-amber-700">These course pairs have <b>no clash-free section combination</b> — routine generation will return no results for them:</p>
+              <ul className="list-disc list-inside space-y-0.5 pl-1">
+                {conflictWarnings.map(w => <li key={w} className="font-mono font-bold">{w}</li>)}
+              </ul>
+            </div>
+          )}
+
           {/* Selected courses rendering */}
           {selectedCourses.length === 0 ? (
             <div className="py-12 border border-dashed border-gray-150 bg-gray-50/20 rounded-xl text-center">
@@ -620,27 +689,44 @@ export default function RoutineBuilder({ token, onSavedSuccess }: RoutineBuilder
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {selectedCourses.map((course) => (
-                <div
-                  key={course.id}
-                  className="p-4 bg-white border border-gray-150 rounded-xl shadow-xs hover:shadow-sm transition-all flex justify-between items-start"
-                >
-                  <div className="space-y-1">
-                    <span className="font-mono font-bold text-xs bg-black text-white px-2 py-0.5 rounded">
-                      {course.code}
-                    </span>
-                    <h4 className="text-sm font-bold text-gray-900 pt-1.5">{course.name}</h4>
-                    <p className="text-[10px] text-gray-400 font-mono">Summer 2026 Core Requirements</p>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveCourse(course.id)}
-                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                    title="Remove Course Allocation"
+              {selectedCourses.map((course) => {
+                const courseSections = allSections.filter(s => s.courseId === course.id);
+                const totalStudents = courseSections.reduce((acc, s) => acc + (sectionPopularity[s.id] || 0), 0);
+                const hasConflict = conflictWarnings.some(w => w.includes(course.code));
+                return (
+                  <div
+                    key={course.id}
+                    className={`p-4 bg-white border rounded-xl shadow-xs hover:shadow-sm transition-all flex justify-between items-start ${hasConflict ? "border-amber-300 bg-amber-50/30" : "border-gray-150"}`}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono font-bold text-xs bg-black text-white px-2 py-0.5 rounded">
+                          {course.code}
+                        </span>
+                        {totalStudents > 0 && (
+                          <span className="text-[9px] font-mono bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded-full font-bold">
+                            👥 {totalStudents} enrolled
+                          </span>
+                        )}
+                        {hasConflict && (
+                          <span className="text-[9px] font-mono bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-bold">
+                            ⚠ Conflict
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-sm font-bold text-gray-900 pt-1.5">{course.name}</h4>
+                      <p className="text-[10px] text-gray-400 font-mono">{courseSections.length} sections available</p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveCourse(course.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                      title="Remove Course Allocation"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 

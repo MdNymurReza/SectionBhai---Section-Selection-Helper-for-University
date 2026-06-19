@@ -100,6 +100,49 @@ function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFuncti
 }
 
 // ==========================================
+// 0. FIRST-TIME ADMIN CLAIM ENDPOINT
+// ==========================================
+
+// Protected by ADMIN_SETUP_SECRET env var. Call this once to promote any
+// registered account to admin. Remove the secret from Vercel after use.
+app.post("/api/setup/claim-admin", async (req: Request, res: Response) => {
+  const { email, secret } = req.body;
+  const expectedSecret = process.env.ADMIN_SETUP_SECRET;
+
+  if (!expectedSecret) {
+    res.status(403).json({ error: "Admin setup is disabled. Set ADMIN_SETUP_SECRET in environment variables to enable." });
+    return;
+  }
+  if (secret !== expectedSecret) {
+    res.status(403).json({ error: "Invalid setup secret." });
+    return;
+  }
+  if (!email) {
+    res.status(400).json({ error: "Email is required." });
+    return;
+  }
+
+  const users = DB.getCollection<User>("users");
+  const idx = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+  if (idx === -1) {
+    res.status(404).json({ error: "No account found with that email. Register first, then claim admin." });
+    return;
+  }
+
+  users[idx] = { ...users[idx], role: "admin" };
+  await DB.saveCollection("users", users);
+
+  // Ensure an admin profile entry exists
+  const admins = DB.getCollection<any>("admins");
+  if (!admins.some(a => a.userId === users[idx].id)) {
+    admins.push({ id: `a_${Date.now()}`, userId: users[idx].id, name: users[idx].email });
+    await DB.saveCollection("admins", admins);
+  }
+
+  res.json({ message: `${email} has been promoted to admin. Log out and log back in to get a fresh token.` });
+});
+
+// ==========================================
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
 
@@ -330,7 +373,7 @@ app.get("/api/admin/stats", verifyToken, requireAdmin, (req: AuthenticatedReques
     totalTeachers: teachers.length,
     totalCourses: courses.length,
     totalSections: sections.length,
-    totalRoutinesGenerated: savedRoutines.length * 3 + 124, // Realistic metrics
+    totalRoutinesGenerated: savedRoutines.length,
     recentRoutines: recent,
     topTeachers: sortedTeachers
   };
@@ -504,6 +547,30 @@ app.post(
   }
 );
 
+// Wipe courses, teachers, sections, schedules, ratings, saved_routines for the current trimester
+// Preserves users, students, admins, trimesters, preferences, announcements, exams
+app.delete("/api/admin/trimester-data", verifyToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const trimesters = DB.getCollection<Trimester>("trimesters");
+    const currentTrimesterId = trimesters.find(t => t.isCurrent)?.id;
+
+    // Clear trimester-scoped data
+    await DB.saveCollection("courses", []);
+    await DB.saveCollection("teachers", []);
+    await DB.saveCollection("sections", []);
+    await DB.saveCollection("schedules", []);
+    await DB.saveCollection("ratings", []);
+    await DB.saveCollection("saved_routines", []);
+
+    res.json({
+      message: `All schedule data for the current trimester (${currentTrimesterId}) has been wiped. You can now re-upload a fresh offering list.`
+    });
+  } catch (err: any) {
+    console.error("Wipe trimester data error:", err);
+    res.status(500).json({ error: "Failed to wipe data: " + err.message });
+  }
+});
+
 // Manual item creators for fine control
 app.post("/api/admin/courses", verifyToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { code, name } = req.body;
@@ -601,7 +668,7 @@ app.get("/api/student/ratings", (req: Request, res: Response) => {
 // Student Rates Teacher
 app.post("/api/student/ratings", verifyToken, (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
-  const { teacherId, courseId, rating, comment, metrics } = req.body;
+  const { teacherId, courseId, rating, comment, metrics, isAnonymous } = req.body;
 
   if (!teacherId || !courseId || !rating || !metrics) {
     res.status(400).json({ error: "Missing required rating metrics or identifiers." });
@@ -615,13 +682,22 @@ app.post("/api/student/ratings", verifyToken, (req: AuthenticatedRequest, res: R
   }
 
   const ratings = DB.getCollection<TeacherRating>("ratings");
+
+  // Prevent duplicate ratings for the same teacher+course combination
+  const existing = ratings.find(r => r.studentId === student.id && r.teacherId === teacherId && r.courseId === courseId);
+  if (existing) {
+    res.status(409).json({ error: "You have already submitted a review for this teacher in this course. Each student can only review once per course." });
+    return;
+  }
+
   const teachers = DB.getCollection<Teacher>("teachers");
 
   const newRatingId = `rating_${Date.now()}`;
   const newReview: TeacherRating = {
     id: newRatingId,
     studentId: student.id,
-    studentName: student.name,
+    studentName: isAnonymous ? "Anonymous Student" : student.name,
+    isAnonymous: !!isAnonymous,
     teacherId,
     courseId,
     rating: Number(rating),
@@ -854,6 +930,18 @@ app.delete("/api/student/saved-routines/:id", verifyToken, (req: AuthenticatedRe
 
   DB.saveCollection("saved_routines", filtered);
   res.json({ message: "Routine deleted from your personal dashboard." });
+});
+
+// Section popularity: counts how many saved routines reference each sectionId
+app.get("/api/student/section-popularity", (req: Request, res: Response) => {
+  const savedRoutines = DB.getCollection<GeneratedRoutine>("saved_routines");
+  const popularityMap: Record<string, number> = {};
+  savedRoutines.forEach(routine => {
+    routine.sections.forEach(sec => {
+      popularityMap[sec.sectionId] = (popularityMap[sec.sectionId] || 0) + 1;
+    });
+  });
+  res.json(popularityMap);
 });
 
 // ==========================================

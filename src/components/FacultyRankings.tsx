@@ -47,6 +47,8 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
   const [formComment, setFormComment] = useState("");
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formSuccessMessage, setFormSuccessMessage] = useState("");
+  const [formIsAnonymous, setFormIsAnonymous] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // UI state
   const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
     }
     setFormSubmitting(true);
     setFormSuccessMessage("");
+    setFormError("");
 
     try {
       const res = await fetch("/api/student/ratings", {
@@ -97,6 +100,7 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
           courseId: formCourseId,
           rating: formOverallRating,
           comment: formComment,
+          isAnonymous: formIsAnonymous,
           metrics: {
             teachingQuality: formTQ,
             gradingFairness: formGF,
@@ -111,6 +115,7 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
       if (res.ok) {
         setFormSuccessMessage("Review posted and rankings re-averaged dynamically!");
         setFormComment("");
+        setFormIsAnonymous(false);
         // Refresh local listings to integrate reviews
         await fetchRankingsData();
         setTimeout(() => {
@@ -118,10 +123,10 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
           setFormSuccessMessage("");
         }, 1500);
       } else {
-        alert(data.error || "Failed to post review.");
+        setFormError(data.error || "Failed to post review.");
       }
     } catch (err) {
-      alert("Verification failed.");
+      setFormError("Network error. Please try again.");
     } finally {
       setFormSubmitting(false);
     }
@@ -180,6 +185,12 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
             <div className="p-3 bg-green-50 border border-green-150 rounded text-xs text-green-800 font-medium flex items-center space-x-2">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <span>{formSuccessMessage}</span>
+            </div>
+          )}
+
+          {formError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-xs text-red-800 font-medium">
+              {formError}
             </div>
           )}
 
@@ -330,6 +341,20 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
               className="block w-full p-3 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-black bg-white"
               placeholder="Tell other students about the course structure, lecture style, exams difficulty, or lab segments..."
             />
+          </div>
+
+          <div className="flex items-center space-x-2.5 p-3 bg-slate-50 rounded-lg border border-slate-150">
+            <input
+              type="checkbox"
+              id="anonymousToggle"
+              checked={formIsAnonymous}
+              onChange={e => setFormIsAnonymous(e.target.checked)}
+              className="h-4 w-4 accent-black rounded"
+            />
+            <label htmlFor="anonymousToggle" className="text-xs text-slate-700 cursor-pointer select-none">
+              <span className="font-semibold">Post anonymously</span>
+              <span className="text-slate-400 ml-1">— your name will show as "Anonymous Student"</span>
+            </label>
           </div>
 
           <div className="flex justify-end pt-4 border-t border-gray-50 space-x-2">
@@ -487,6 +512,11 @@ export default function FacultyRankings({ token, user }: FacultyRankingsProps) {
                                   <span className="font-bold flex items-center space-x-1.5">
                                     <User className="h-3.5 w-3.5 text-gray-400" />
                                     <span>{rev.studentName}</span>
+                                    {rev.isAnonymous && (
+                                      <span className="text-[9px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full border border-gray-200">
+                                        anonymous
+                                      </span>
+                                    )}
                                   </span>
                                   <span className="font-mono text-amber-500 font-bold shrink-0">
                                     &#9733; {rev.rating} Overall

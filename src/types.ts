@@ -85,6 +85,7 @@ export interface TeacherRating {
   id: string;
   studentId: string; // Foreign key to StudentProfile
   studentName: string;
+  isAnonymous?: boolean;
   teacherId: string;
   courseId: string; // rating context
   rating: number; // 1-5 overall

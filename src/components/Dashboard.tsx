@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Calendar,
   BookOpen,
@@ -39,6 +39,10 @@ export default function Dashboard({ token, user, onNavigateToBuilder, onNavigate
   const [exams, setExams] = useState<ExamSchedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  // Ref map for calendar grids (used for PDF export)
+  const calendarRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -117,6 +121,37 @@ export default function Dashboard({ token, user, onNavigateToBuilder, onNavigate
       }
     } catch(err) {
       alert("Failed to generate share link.");
+    }
+  };
+
+  const handleExportPDF = async (routine: GeneratedRoutine, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const calendarEl = calendarRefs.current[routine.id];
+    if (!calendarEl) {
+      alert("Please expand the routine first before exporting.");
+      return;
+    }
+    setExportingId(routine.id);
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf")
+      ]);
+      const canvas = await html2canvas(calendarEl, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [canvas.width / 2, canvas.height / 2 + 60] });
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`SectionBhai — ${routine.name}`, 16, 24);
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Match: ${routine.matchPercentage}%  |  Free Days: ${routine.freeDays.join(", ") || "None"}  |  Gaps: ${routine.gapsCount}`, 16, 40);
+      pdf.addImage(imgData, "PNG", 0, 52, canvas.width / 2, canvas.height / 2);
+      pdf.save(`${routine.name.replace(/\s+/g, "_")}_routine.pdf`);
+    } catch (err) {
+      alert("PDF export failed. Please try again.");
+    } finally {
+      setExportingId(null);
     }
   };
 
@@ -361,7 +396,7 @@ export default function Dashboard({ token, user, onNavigateToBuilder, onNavigate
                               const timelineMinWidth = "1000px";
 
                               return (
-                                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm border-t-4 border-t-indigo-600">
+                                <div ref={el => { calendarRefs.current[routine.id] = el; }} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm border-t-4 border-t-indigo-600">
                                   <div className="bg-slate-50/70 p-3 flex items-center justify-between border-b border-slate-100">
                                     <h4 className="text-xs font-bold text-slate-900 flex items-center space-x-1.5 font-display">
                                       <CalendarDays className="h-4 w-4 text-indigo-600" />
@@ -513,14 +548,31 @@ export default function Dashboard({ token, user, onNavigateToBuilder, onNavigate
                               );
                             })()}
 
-                            {/* Dashboard Print Controls */}
+                            {/* Dashboard Export Controls */}
                             <div className="flex justify-end space-x-2 pt-2 border-t border-gray-50">
                               <button
+                                onClick={(e) => handleExportPDF(routine, e)}
+                                disabled={exportingId === routine.id}
+                                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow-sm"
+                              >
+                                {exportingId === routine.id ? (
+                                  <>
+                                    <Download className="h-3.5 w-3.5 animate-bounce" />
+                                    <span>Exporting...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download className="h-3.5 w-3.5" />
+                                    <span>Export PDF</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
                                 onClick={() => window.print()}
-                                className="inline-flex items-center space-x-1.5 px-3 py-1.5 border border-gray-200 text-xs font-medium rounded hover:bg-gray-50 transition-colors cursor-pointer"
+                                className="inline-flex items-center space-x-1.5 px-3 py-1.5 border border-gray-200 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                               >
                                 <Printer className="h-3.5 w-3.5" />
-                                <span>Print Schedule</span>
+                                <span>Print</span>
                               </button>
                             </div>
                           </div>

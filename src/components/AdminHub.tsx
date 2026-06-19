@@ -19,9 +19,11 @@ import {
   Clock,
   Loader2,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
-import { StatsResponse, Trimester } from "../types";
+import { StatsResponse, Trimester, StudentProfile } from "../types";
 
 interface AdminHubProps {
   token: string;
@@ -30,7 +32,7 @@ interface AdminHubProps {
 export default function AdminHub({ token }: AdminHubProps) {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"ingestion" | "manual" | "trimesters" | "announcements" | "exams">("ingestion");
+  const [activeTab, setActiveTab] = useState<"ingestion" | "manual" | "trimesters" | "announcements" | "exams" | "students" | "wipe">("ingestion");
 
   // Announcement states
   const [annTitle, setAnnTitle] = useState("");
@@ -57,10 +59,57 @@ export default function AdminHub({ token }: AdminHubProps) {
   const [mTeacherName, setMTeacherName] = useState("");
   const [manualMessage, setManualMessage] = useState("");
 
-  // Trimester Setup states
+  // Student management state
+  const [students, setStudents] = useState<StudentProfile[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
+
+  // Wipe state
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+  const [wiping, setWiping] = useState(false);
+  const [wipeMessage, setWipeMessage] = useState("");
   const [trimesterName, setTrimesterName] = useState("");
   const [trimesterMakeCurrent, setTrimesterMakeCurrent] = useState(true);
   const [trimesterMessage, setTrimesterMessage] = useState("");
+
+  const loadStudents = async () => {
+    setStudentsLoading(true);
+    try {
+      const res = await fetch("/api/admin/students", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setStudents(data);
+    } catch (err) {
+      console.error("Failed to load students.", err);
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+  const handleWipe = async () => {
+    if (wipeConfirmText !== "WIPE") return;
+    setWiping(true);
+    setWipeMessage("");
+    try {
+      const res = await fetch("/api/admin/trimester-data", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWipeMessage(data.message);
+        setWipeConfirmText("");
+        await loadStats();
+      } else {
+        setWipeMessage(data.error || "Wipe failed.");
+      }
+    } catch (err: any) {
+      setWipeMessage(err.message || "Error connecting to server.");
+    } finally {
+      setWiping(false);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -384,6 +433,40 @@ export default function AdminHub({ token }: AdminHubProps) {
             <div>
               <p className="text-xs font-mono uppercase tracking-wide opacity-50">Academic</p>
               <p className="text-sm font-bold mt-0.5">Exam Schedules</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab("students"); loadStudents(); }}
+            className={`w-full text-left p-4 rounded-xl border transition-all flex items-center space-x-3 cursor-pointer ${
+              activeTab === "students"
+                ? "bg-black border-black text-white shadow-sm"
+                : "bg-white border-gray-150 text-gray-700 hover:border-gray-250"
+            }`}
+          >
+            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center">
+              <Users className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-mono uppercase tracking-wide opacity-50">Directory</p>
+              <p className="text-sm font-bold mt-0.5">Student Roster</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("wipe")}
+            className={`w-full text-left p-4 rounded-xl border transition-all flex items-center space-x-3 cursor-pointer ${
+              activeTab === "wipe"
+                ? "bg-red-600 border-red-600 text-white shadow-sm"
+                : "bg-white border-red-100 text-red-700 hover:border-red-200 hover:bg-red-50"
+            }`}
+          >
+            <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center">
+              <Trash2 className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-mono uppercase tracking-wide opacity-70">Danger Zone</p>
+              <p className="text-sm font-bold mt-0.5">Wipe Trimester Data</p>
             </div>
           </button>
         </div>
@@ -758,6 +841,110 @@ export default function AdminHub({ token }: AdminHubProps) {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* TAB 6: STUDENT ROSTER */}
+          {activeTab === "students" && (
+            <div className="bg-white rounded-xl border border-gray-150 p-6 space-y-6 shadow-xs animate-fade-in">
+              <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-md font-bold text-gray-950">Registered Student Roster</h3>
+                  <p className="text-xs text-gray-400 font-mono mt-1">All student accounts in the system.</p>
+                </div>
+                <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold">{students.length} students</span>
+              </div>
+
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={e => setStudentSearch(e.target.value)}
+                placeholder="Search by name, student ID, or department..."
+                className="block w-full p-2.5 border border-gray-200 rounded-lg text-xs bg-white"
+              />
+
+              {studentsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : students.length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-8">No students registered yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-left text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                        <th className="pb-2 pr-4">Name</th>
+                        <th className="pb-2 pr-4">Student ID</th>
+                        <th className="pb-2 pr-4">Department</th>
+                        <th className="pb-2">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {students
+                        .filter(s =>
+                          s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                          s.studentId.includes(studentSearch) ||
+                          s.department.toLowerCase().includes(studentSearch.toLowerCase())
+                        )
+                        .map(s => (
+                          <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="py-2.5 pr-4 font-semibold text-gray-900">{s.name}</td>
+                            <td className="py-2.5 pr-4 font-mono text-gray-600">{s.studentId}</td>
+                            <td className="py-2.5 pr-4 text-gray-500 max-w-[160px] truncate">{s.department}</td>
+                            <td className="py-2.5 text-gray-400 font-mono">{new Date(s.createdAt).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 7: WIPE TRIMESTER DATA */}
+          {activeTab === "wipe" && (
+            <div className="bg-white rounded-xl border border-red-200 p-6 space-y-6 shadow-xs animate-fade-in">
+              <div className="border-b border-red-100 pb-3">
+                <h3 className="text-md font-bold text-red-900 flex items-center space-x-2">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <span>Wipe Current Trimester Data</span>
+                </h3>
+                <p className="text-xs text-red-400 font-mono mt-1">
+                  Permanently deletes all courses, teachers, sections, schedules, ratings, and saved routines. Student accounts and trimesters are preserved.
+                </p>
+              </div>
+
+              {wipeMessage && (
+                <div className={`p-3 rounded-lg text-xs font-semibold border ${wipeMessage.includes("wiped") ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+                  {wipeMessage}
+                </div>
+              )}
+
+              <div className="bg-red-50 border border-red-200 rounded-xl p-5 space-y-4">
+                <p className="text-sm font-semibold text-red-900">This action cannot be undone.</p>
+                <p className="text-xs text-red-700">
+                  Use this before uploading a corrected offering list to start fresh. Type <code className="bg-red-100 px-1 py-0.5 rounded font-mono font-bold">WIPE</code> to confirm.
+                </p>
+
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="text"
+                    value={wipeConfirmText}
+                    onChange={e => setWipeConfirmText(e.target.value.toUpperCase())}
+                    placeholder="Type WIPE to confirm"
+                    className="flex-1 p-2.5 border border-red-300 rounded-lg text-sm bg-white font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-red-400"
+                  />
+                  <button
+                    onClick={handleWipe}
+                    disabled={wipeConfirmText !== "WIPE" || wiping}
+                    className="px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-extrabold rounded-lg cursor-pointer transition-colors flex items-center space-x-2"
+                  >
+                    {wiping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    <span>{wiping ? "Wiping..." : "Confirm Wipe"}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
